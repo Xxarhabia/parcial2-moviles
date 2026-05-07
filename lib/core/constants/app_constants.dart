@@ -14,5 +14,6 @@ class AppConstants {
 
   // app
   static const String appName = 'ShopFlow';
+  static const String appToken = 'shopflow_token_2024';
 
 }

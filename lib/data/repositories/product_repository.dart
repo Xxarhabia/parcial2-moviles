@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:segundo_parcial/core/constants/app_constants.dart';
-import 'package:segundo_parcial/data/models/product_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/product_model.dart';
+import '../../core/constants/app_constants.dart';
 
 class ProductRepository {
   late final Dio _dio;
@@ -15,17 +16,36 @@ class ProductRepository {
       ),
     );
 
-    // Interceptor para loggin
+    // Interceptor de autenticación
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final prefs = await SharedPreferences.getInstance();
+          final userJson = prefs.getString(AppConstants.currentUserKey);
+          if (userJson != null) {
+            options.headers['X-User-Session'] = 'authenticated';
+            options.headers['X-App-Token'] = AppConstants.appToken;
+          }
+          print('🔐 AUTH INTERCEPTOR — Headers: ${options.headers}');
+          return handler.next(options);
+        },
+        onError: (error, handler) {
+          print('❌ DIO ERROR: ${error.message}');
+          return handler.next(error);
+        },
+      ),
+    );
+
+    // Interceptor de logging
     _dio.interceptors.add(
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (obj) => print('DIO: $obj'),
+        logPrint: (obj) => print('🌐 DIO: $obj'),
       ),
     );
   }
 
-  // Obtener todos los productos
   Future<List<ProductModel>> getProducts() async {
     try {
       final response = await _dio.get(AppConstants.productsEndpoint);
@@ -36,12 +56,11 @@ class ProductRepository {
     }
   }
 
-  // Crear producto
-  Future<ProductModel> createProduct(ProductModel prorduct) async {
+  Future<ProductModel> createProduct(ProductModel product) async {
     try {
       final response = await _dio.post(
         AppConstants.productsEndpoint,
-        data: prorduct.toMap(),
+        data: product.toMap(),
       );
       return ProductModel.fromMap(response.data);
     } on DioException catch (e) {
@@ -49,20 +68,9 @@ class ProductRepository {
     }
   }
 
-  // Eliminar producto
   Future<void> deleteProduct(String id) async {
     try {
       await _dio.delete('${AppConstants.productsEndpoint}/$id');
-    } on DioException catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  // Obtener producto por ID
-  Future<ProductModel> getProductById(String id) async {
-    try {
-      final response = await _dio.get('${AppConstants.productsEndpoint}/$id');
-      return ProductModel.fromMap(response.data);
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -72,13 +80,13 @@ class ProductRepository {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.receiveTimeout:
-        return Exception('Tiempo de conexion agotado. Verifica tu internet');
+        return Exception('Tiempo de conexión agotado.');
       case DioExceptionType.connectionError:
-        return Exception('Sin conexion a internet');
+        return Exception('Sin conexión a internet.');
       case DioExceptionType.badResponse:
         final status = e.response?.statusCode;
-        if (status == 404) return Exception('Recurso no encontrado');
-        if (status == 500) return Exception('Error del servidor');
+        if (status == 404) return Exception('Recurso no encontrado.');
+        if (status == 500) return Exception('Error del servidor.');
         return Exception('Error HTTP $status');
       default:
         return Exception('Error inesperado: ${e.message}');
