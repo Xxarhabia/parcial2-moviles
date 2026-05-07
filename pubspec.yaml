@@ -1,0 +1,45 @@
+name: segundo_parcial
+description: "App con autenticacion y gestion de productos"
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Iconos y deseño
+  cupertino_icons: ^1.0.8
+  flutter_animate: ^4.5.2
+  cached_network_image: ^3.4.1
+  
+  # HTTP Client
+  dio: ^5.9.2
+
+  # Routing
+  go_router: ^17.2.3
+  
+  # Local Storage
+  shared_preferences: ^2.5.5
+  
+  # Encriptacion
+  crypto: ^3.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora-Regular.ttf
+        - asset: assets/fonts/Sora-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Sora-SemiBold.ttf
+          weight: 600
