@@ -28,6 +28,9 @@ dependencies:
   # Encriptacion
   crypto: ^3.0.7
 
+  image_picker: ^1.2.2
+  cloudinary_public: ^0.23.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

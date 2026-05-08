@@ -5,6 +5,9 @@ import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/product_repository.dart';
 import '../widgets/app_drawer.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import '../../data/services/image_upload_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -154,8 +157,13 @@ class _RegisterTabState extends State<_RegisterTab>
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _imageUploadService = ImageUploadService();
+
   String _selectedCategory = 'Electrónica';
   bool _isLoading = false;
+  File? _selectedImage;
+  String? _uploadedImageUrl;
+  bool _isUploadingImage = false;
 
   static const _categories = [
     'Electrónica', 'Ropa', 'Hogar',
@@ -173,8 +181,61 @@ class _RegisterTabState extends State<_RegisterTab>
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+
+    if (picked == null) return;
+
+    setState(() {
+      _selectedImage = File(picked.path);
+      _uploadedImageUrl = null;
+      _isUploadingImage = true;
+    });
+
+    try {
+      final url = await _imageUploadService.uploadImage(_selectedImage!);
+      setState(() {
+        _uploadedImageUrl = url;
+        _isUploadingImage = false;
+      });
+    } catch (e) {
+      setState(() {
+        _selectedImage = null;
+        _isUploadingImage = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImage = null;
+      _uploadedImageUrl = null;
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_isUploadingImage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Espera a que termine de subir la imagen')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -183,14 +244,18 @@ class _RegisterTabState extends State<_RegisterTab>
         price: _priceController.text.trim(),
         category: _selectedCategory,
         description: _descriptionController.text.trim(),
+        imageUrl: _uploadedImageUrl ?? '',
       );
       await widget.productRepository.createProduct(product);
 
-      // Limpiar formulario
       _nameController.clear();
       _priceController.clear();
       _descriptionController.clear();
-      setState(() => _selectedCategory = 'Electrónica');
+      setState(() {
+        _selectedCategory = 'Electrónica';
+        _selectedImage = null;
+        _uploadedImageUrl = null;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -228,7 +293,30 @@ class _RegisterTabState extends State<_RegisterTab>
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         children: [
-          // Nombre
+
+          // ── Selector de imagen ──────────────────────────────────
+          GestureDetector(
+            onTap: _isUploadingImage ? null : _pickImage,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: 160,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _uploadedImageUrl != null
+                      ? AppColors.success
+                      : AppColors.border,
+                  width: _uploadedImageUrl != null ? 1.5 : 1,
+                ),
+              ),
+              child: _buildImageContent(),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Nombre ─────────────────────────────────────────────
           TextFormField(
             controller: _nameController,
             textCapitalization: TextCapitalization.words,
@@ -247,7 +335,7 @@ class _RegisterTabState extends State<_RegisterTab>
           ),
           const SizedBox(height: 16),
 
-          // Precio
+          // ── Precio ─────────────────────────────────────────────
           TextFormField(
             controller: _priceController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -266,57 +354,37 @@ class _RegisterTabState extends State<_RegisterTab>
           ),
           const SizedBox(height: 20),
 
-          // Categoría
-          const Text(
-            'Categoría',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          // ── Categoría ──────────────────────────────────────────
+          const Text('Categoría', style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 8, runSpacing: 8,
             children: _categories.map((cat) {
               final isSelected = cat == _selectedCategory;
               return GestureDetector(
                 onTap: () => setState(() => _selectedCategory = cat),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.surfaceElevated,
+                    color: isSelected ? AppColors.primary : AppColors.surfaceElevated,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.border,
-                    ),
+                      color: isSelected ? AppColors.primary : AppColors.border),
                   ),
-                  child: Text(
-                    cat,
-                    style: TextStyle(
-                      color: isSelected
-                          ? AppColors.background
-                          : AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
+                  child: Text(cat, style: TextStyle(
+                    color: isSelected ? AppColors.background : AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  )),
                 ),
               );
             }).toList(),
           ),
           const SizedBox(height: 20),
 
-          // Descripción
+          // ── Descripción ────────────────────────────────────────
           TextFormField(
             controller: _descriptionController,
             maxLines: 3,
@@ -338,24 +406,128 @@ class _RegisterTabState extends State<_RegisterTab>
           ),
           const SizedBox(height: 28),
 
+          // ── Botón guardar ──────────────────────────────────────
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _isLoading ? null : _submit,
+              onPressed: _isLoading || _isUploadingImage ? null : _submit,
               icon: _isLoading
-                  ? const SizedBox(
-                      height: 18, width: 18,
+                  ? const SizedBox(height: 18, width: 18,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.background,
-                      ),
-                    )
+                          strokeWidth: 2, color: AppColors.background))
                   : const Icon(Icons.check_rounded),
               label: Text(_isLoading ? 'Registrando...' : 'Registrar Producto'),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildImageContent() {
+    // Subiendo imagen
+    if (_isUploadingImage) {
+      return const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+          SizedBox(height: 12),
+          Text('Subiendo imagen...', style: TextStyle(
+              color: AppColors.textSecondary, fontSize: 13)),
+        ],
+      );
+    }
+
+    // Imagen seleccionada y subida
+    if (_selectedImage != null && _uploadedImageUrl != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: Image.file(_selectedImage!, fit: BoxFit.cover),
+          ),
+          // Overlay con opciones
+          Positioned(
+            top: 8, right: 8,
+            child: Row(
+              children: [
+                // Cambiar imagen
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: AppColors.primary, size: 18),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // Eliminar imagen
+                GestureDetector(
+                  onTap: _removeImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.close_rounded,
+                        color: AppColors.error, size: 18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Badge de éxito
+          Positioned(
+            bottom: 8, left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_rounded, color: AppColors.background, size: 12),
+                  SizedBox(width: 4),
+                  Text('Imagen lista', style: TextStyle(
+                      color: AppColors.background, fontSize: 11,
+                      fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Sin imagen — placeholder para seleccionar
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.add_photo_alternate_rounded,
+              color: AppColors.primary, size: 28),
+        ),
+        const SizedBox(height: 10),
+        const Text('Agregar imagen', style: TextStyle(
+            color: AppColors.textPrimary, fontSize: 13,
+            fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        const Text('Toca para seleccionar de la galería',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+      ],
     );
   }
 }

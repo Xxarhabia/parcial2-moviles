@@ -16,4 +16,7 @@ class AppConstants {
   static const String appName = 'ShopFlow';
   static const String appToken = 'shopflow_token_2024';
 
+  // Cloudinary
+  static const String cloudinaryCloudName = 'dw5qjlccv';
+  static const String cloudinaryUploadPreset = 'shopflow_preset';
 }
